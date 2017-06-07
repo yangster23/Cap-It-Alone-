@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+
 import Leap, sys, thread, time
 from Leap import CircleGesture, KeyTapGesture, ScreenTapGesture, SwipeGesture
 
@@ -9,6 +10,13 @@ class SampleListener(Leap.Listener):
     finger_names = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky']
     bone_names = ['Metacarpal', 'Proximal', 'Intermediate', 'Distal']
     state_names = ['STATE_INVALID', 'STATE_START', 'STATE_UPDATE', 'STATE_END']
+    palm = []
+    index = []
+    mid = []
+    ring = []
+    pinky = []
+    thumb = []
+    handlist = [thumb, index, mid, ring, pinky]
 
     def on_init(self, controller):
         print "Initialized"
@@ -46,6 +54,7 @@ class SampleListener(Leap.Listener):
 
             # Get the hand's normal vector and direction
             normal = hand.palm_normal
+            self.palm.append(normal)
             direction = hand.direction
 
             # Calculate the hand's pitch, roll, and yaw angles
@@ -63,12 +72,13 @@ class SampleListener(Leap.Listener):
 
             # Get fingers
             for finger in hand.fingers:
+            	self.handlist[finger.type].append(finger.direction)
 
-                print "    %s finger, id: %d, length: %fmm, width: %fmm" % (
-                    self.finger_names[finger.type],
-                    finger.id,
-                    finger.length,
-                    finger.width)
+                # print "    %s finger, id: %d, length: %fmm, width: %fmm" % (
+                #     self.finger_names[finger.type],
+                #     finger.id,
+                #     finger.length,
+                #     finger.width)
 
         # Get tools
         for tool in frame.tools:
@@ -91,20 +101,24 @@ class SampleListener(Leap.Listener):
             return "STATE_INVALID"
 
 def main():
-    global starttime
-    # Create a sample listener and controller
-    listener = SampleListener()
-    controller = Leap.Controller()
+	global starttime
+	# Create a sample listener and controller
+	listener = SampleListener()
+	controller = Leap.Controller()
+	
+	# Have the sample listener receive events from the controller
+	controller.add_listener(listener)
 
-    # Have the sample listener receive events from the controller
-    controller.add_listener(listener)
-
-    # Keep this process running until 2 seconds have passed
-    print('test')
-    if time.time() - starttime > 2:
-        print('hello')
-        controller.remove_listener(listener)
-    print('test2')
-
+	# Keep this process running until 2 seconds have passed
+	while(time.time() - starttime < 2):
+		pass
+	else:
+		controller.remove_listener(listener)
+	for item in listener.handlist:
+		for items in item:
+			print type(items)
+	for item in listener.palm:
+		print type(item)
+	
 if __name__ == "__main__":
     main()
