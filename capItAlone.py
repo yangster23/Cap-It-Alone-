@@ -119,25 +119,8 @@ def main():
      # Compute average finger directional vectors
     avgNorms = []
     for vectorData in listener.handlist:
-         x = 0
-         y = 0
-         z = 0
-         numVecs = len(vectorData)
-         for vector in vectorData:
-             x += vector.x
-             y += vector.y
-             z += vector.z
-         avgNorms.append((x/numVecs,y/numVecs,z/numVecs))
-    # Compute average palm directional vector
-    x = 0
-    y = 0
-    z = 0
-    numVecs = len(vectorData)
-    for vector in listener.palm:
-          x += vector.x
-          y += vector.y
-          z += vector.z
-    avgPalm = (x/numVecs,y/numVecs,z/numVecs)
+        avgNorms.append(compute_avg_vector(vectorData))
+    avgPalm = compute_avg_vector(listener.palm)
     print('palm',avgPalm)
     print([vector for vector in avgNorms])
     # Compute absolute dot product of palm to finger directional vectors
@@ -155,6 +138,19 @@ def main():
     print('Average roll', avgRoll)
     successful = check_tolerances(avgRoll,avgDot)
     print("Password success: ", successful)
+
+def compute_avg_vector(vectorList):
+    # Check whether or not roll and dot match our binary password
+    # This position assumes a flat hand with fingers orthogonal to palm
+    x = 0
+    y = 0
+    z = 0
+    numVecs = len(vectorList)
+    for vector in vectorList:
+        x += vector.x
+        y += vector.y
+        z += vector.z
+    return (x/numVecs,y/numVecs,z/numVecs)
     
 def check_tolerances(roll, dot):
     # Check whether or not roll and dot match our binary password
