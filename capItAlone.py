@@ -4,12 +4,13 @@
 import Leap, sys, thread, time
 from Leap import CircleGesture, KeyTapGesture, ScreenTapGesture, SwipeGesture
 
-starttime = time.time()
-
 class SampleListener(Leap.Listener):
     finger_names = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky']
     bone_names = ['Metacarpal', 'Proximal', 'Intermediate', 'Distal']
     state_names = ['STATE_INVALID', 'STATE_START', 'STATE_UPDATE', 'STATE_END']
+    
+    def __init___(self):
+        self.init_time = time.time()
 
     def on_init(self, controller):
         print "Initialized"
@@ -92,18 +93,16 @@ class SampleListener(Leap.Listener):
             return "STATE_INVALID"
 
 def main():
-	global starttime
-	# Create a sample listener and controller
-	listener = SampleListener()
-	controller = Leap.Controller()
+    # Create a sample listener and controller
+    listener = SampleListener()
+    controller = Leap.Controller()
 
-	# Have the sample listener receive events from the controller
-	controller.add_listener(listener)
+    # Have the sample listener receive events from the controller
+    controller.add_listener(listener)
 
-	# Keep this process running until Enter is pressed
-	if time.time()-starttime > 2:
-		# Remove the sample listener when done
-		controller.remove_listener(listener)
+    # Keep this process running until 2 seconds have passed
+    if time.time() - listener.init_time > 2:
+        controller.remove_listener(listener)
 
 if __name__ == "__main__":
     main()
