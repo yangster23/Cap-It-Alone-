@@ -26,10 +26,11 @@ def signupform(request):
     if request.method == 'POST':
         form = SignupForm(request.POST)
         if form.is_valid():
-            username_val = form.cleaned_data['username']
+            username_val = form.cleaned_data['Username']
             user = User(username=username_val)
             user.save()
-            return HttpResponseRedirect(reverse('leap:authentication', args=(user_id, 1)))
+            user_id = user.id
+            return HttpResponseRedirect(reverse('leap:authentication', args=(user_id, )))
     else:
         form = SignupForm()
     return render(request, 'leap/signup.html', {'form':form});
