@@ -17,6 +17,7 @@
 <script>
 // Track variables while in timer.
 var inTimer = false;
+var store = false;
 var lastFingerDiffs = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
 var currentFingerDiffs = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
 var fingerErrors = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
@@ -92,14 +93,14 @@ Leap.loop(controllerOptions, function(frame) {
       palmNormalAverages[i] = palmNormalSum[i]/frameCount;
     }
     
-    /*var printString = "Thumb Relative to Palm: " + vectorToString(vectorDiff(palmAverages, averageTips[0]), 2) + "\n";
-    printString += "Index Relative to Palm: " + vectorToString(vectorDiff(palmAverages, averageTips[1]), 2) + "\n";
-    printString += "Middle Relative to Palm: " + vectorToString(vectorDiff(palmAverages, averageTips[2]), 2) + "\n";
-    printString += "Ring Relative to Palm: " + vectorToString(vectorDiff(palmAverages, averageTips[3]), 2) + "\n";
-    printString += "Pinky Relative to Palm: " + vectorToString(vectorDiff(palmAverages, averageTips[4]), 2) + "\n";
-    console.log(printString);*/
+    var printString = "Thumb Relative to Palm: " + vectorToString(averageTips[0], 2) + "\n";
+    printString += "Index Relative to Palm: " + vectorToString(averageTips[1], 2) + "\n";
+    printString += "Middle Relative to Palm: " + vectorToString(averageTips[2], 2) + "\n";
+    printString += "Ring Relative to Palm: " + vectorToString(averageTips[3], 2) + "\n";
+    printString += "Pinky Relative to Palm: " + vectorToString(averageTips[4], 2) + "\n";
+    console.log(printString);
     for (var i = 0; i < 5; i++) {
-      currentFingerDiffs[i] = vectorDiff(palmPositionAverages, averageTipDirections[i]);
+      currentFingerDiffs[i] = vectorDiff(palmPositionAverages, averageTips[i]);
     }
 
     for (var i = 0; i < 5; i++) {
@@ -108,17 +109,17 @@ Leap.loop(controllerOptions, function(frame) {
       }
     }
 
-    var printString = "";
+    printString = "";
     var sum = 0;
     var pass = true;
     for (var i = 0; i < 5; i++) {
-      printString += "Error number " + i + " is " + squareMagnitude(fingerErrors[i]) + ".\n";
+      //printString += "Error number " + i + " is " + squareMagnitude(fingerErrors[i]) + ".\n";
       sum += squareMagnitude(fingerErrors[i]);
     }
     var aveError = sum/5;
     printString += "Average Error is " + aveError + ".\n";
     printString += "Palm Direction is " + vectorToString(palmDirectionAverages) + ".\n";
-    if (aveError < 300 && aveError > -300) {
+    if (aveError < 1000 && aveError > -1000) {
       printString += "You passed!\n";
     }
     else {
@@ -126,11 +127,15 @@ Leap.loop(controllerOptions, function(frame) {
     }
     console.log(printString);
 
-    inTimer = false;
-    document.getElementById("start").style.visibility = "visible";
-    for (var i = 0; i < 5; i++) {
-      lastFingerDiffs[i] = currentFingerDiffs[i];
+    document.getElementById("main").style.visibility = "visible";
+
+    if (store) {
+      for (var i = 0; i < 5; i++) {
+        lastFingerDiffs[i] = currentFingerDiffs[i];
+      }
     }
+    inTimer = false;
+    store = false;
   }
 
   // Frame object data
@@ -182,16 +187,18 @@ Leap.loop(controllerOptions, function(frame) {
 })
 
 // Start recording hand position
-function startRecording() {
+function startRecording(doStore) {
   inTimer = true;
-  document.getElementById("start").style.visibility = "hidden";
+  store = doStore;
+  document.getElementById("main").style.visibility = "hidden";
 }
 </script>
 </head>
 <body>
 <h1>Leap Motion JavaScript Sample</h1>
 <div id="main">
-  <button id="start" onclick="startRecording()">Start!</button>
+  <button class="start" onclick="startRecording(true)">Store Sign!</button>
+  <button class="start" onclick="startRecording(false)">Compare Sign!</button>
 </div>
 </body>
 </html>
