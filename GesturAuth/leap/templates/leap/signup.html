@@ -9,5 +9,5 @@
 <form action="{% url 'leap:signupform' %}" method="post">
         {% csrf_token %}
         {{ form.as_p }}
-        <input type="submit" value="Submit" />
+        <input type="submit" value="Start LeapMotion Authorization" />
 </form>

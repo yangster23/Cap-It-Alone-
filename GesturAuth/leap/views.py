@@ -10,6 +10,7 @@ from .models import User
 from .forms import SignupForm
 
 
+
 class SignupView(generic.FormView):
     template_name = 'leap/signup.html'
     form_class = SignupForm
