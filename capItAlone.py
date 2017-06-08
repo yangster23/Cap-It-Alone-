@@ -55,7 +55,7 @@ class SampleListener(Leap.Listener):
             print "  %s, id %d, position: %s" % (
                 handType, hand.id, hand.palm_position)
 
-            # Get the hand's normal vector and direction
+            # Get the hand's normal vec and direction
             normal = hand.palm_normal
             self.palm.append(normal)
             direction = hand.direction
@@ -66,19 +66,13 @@ class SampleListener(Leap.Listener):
                 normal.roll * Leap.RAD_TO_DEG,
                 direction.yaw * Leap.RAD_TO_DEG)
             self.roll.append(normal.roll)
-            # Get arm bone
-            # arm = hand.arm
-            # print "  Arm direction: %s, wrist position: %s, elbow position: %s" % (
-            #     arm.direction,
-            #     arm.wrist_position,
-            #     arm.elbow_position)
-
+            
             # Get fingers
             for finger in hand.fingers:
                 self.handlist[finger.type].append(finger.direction)
                 finger_pos = finger.tip_position
                 hand_pos = hand.palm_position
-                self.vectlist[finger.type].append(subtract_vectors(finger_pos, hand_pos))
+                self.vectlist[finger.type].append(subtract_vecs(finger_pos, hand_pos))
 
 #                print "    %s finger, id: %d, length: %fmm, width: %fmm" % (
 #                     self.finger_names[finger.type],
@@ -105,7 +99,14 @@ class SampleListener(Leap.Listener):
 
         if state == Leap.Gesture.STATE_INVALID:
             return "STATE_INVALID"
-
+            
+def subtract_vecs(vec1, vec2):
+    # Subtract two leap vecs, where we subtract vec2 from vec1
+    x = vec1.x - vec2.x
+    y = vec1.y - vec2.y
+    z = vec1.z - vec2.z
+    return Leap.Vector(x,y,z)
+    
 def main():
     global starttime
     # Create a sample listener and controller
@@ -120,102 +121,69 @@ def main():
         pass
     else:
         controller.remove_listener(listener)
-     # Compute average finger directional vectors
+    
+    avgPalm, avgNorms = compute_avg_directional_vecs(listener)
+    avgDotProds, stdDotProds = compute_dot_products(avgNorms, avgPalm, listener)
+    avgRoll, stdRoll = compute_roll(listener)
+    avgFingVecs, stdFingVecs = compute_fing_vecs(listener)
+    
+    fingIntervals, dotIntervals, rollIntervals = construct_conf_intervals(
+    avgFingVecs,stdFingVecs,avgDotProds,stdDotProds,avgRoll,stdRoll)
+    print_conf_intervals(fingIntervals, dotIntervals, rollIntervals)
+
+    pickle_intervals(fingIntervals, dotIntervals, rollIntervals)
+
+
+def compute_avg_directional_vecs(listener):
+     # Compute Avg finger and palm directional vecs
     avgNorms = []
-    for vectorList in listener.handlist:
-        avgNorms.append(compute_avg_vector(vectorList))
-    avgPalm = compute_avg_vector(listener.palm)
-    print('palm',avgPalm)
-    print([vector for vector in avgNorms])
-    # Compute absolute dot product of palm to finger directional vectors
-    avgDotProds = []
-    stdDotProds = []
-    for vector in avgNorms:
-        avgDotProds.append(abs(sum(p*q for p,q in zip(avgPalm, vector))))
-    ####
-    for vectorList in listener.handlist:
-        stdDotProds.append(compute_var_dot_product(listener.palm,vectorList)**0.5)
-    ####
-    # Compute roll
-    avgRoll = sum(listener.roll)/len(listener.roll)
-    stdRoll = (sum([(num-avgRoll)**2 for num in listener.roll])/(len(listener.roll)-1))**0.5
-    
-    print('Average roll', avgRoll)
-    print('Std Roll', stdRoll)
-    print('Average dot prods', [item for item in avgDotProds])
-    print('Average dot prod stds', [item for item in stdDotProds])
+    for vecList in listener.handlist:
+        avgNorms.append(compute_avg_vec(vecList))
 
-    avgFingerVectors = []
-    for vectorList in listener.vectlist:
-        avgFingerVectors.append([compute_avg_vector(vectorList), compute_std_vector(vectorList)])
-    for vector in avgFingerVectors:
-        print('Avg. Finger Vector: ', vector[0])
-        print('Avg. Finger Std: ', vector[1])
-    fingerIntervals = []
-    for i in range(len(avgFingerVectors)):
-        finger = []
-        for j in range(3):
-            finger.append([avgFingerVectors[i][0][j]-3*avgFingerVectors[i][1][j],
-                           avgFingerVectors[i][0][j]+3*avgFingerVectors[i][1][j]])
-        fingerIntervals.append(finger)
-    for finger in fingerIntervals:
-        for coordinate in finger:
-            print('finger dimension bound', coordinate)
-    #print('Finger Confidence Intervals', fingerIntervals)
-    dotProdIntervals = []
-    for i in range(len(avgDotProds)):
-        dotProdIntervals.append([avgDotProds[i]-3*stdDotProds[i],
-                           avgDotProds[i]+3*stdDotProds[i]])
-    for dotProd in dotProdIntervals:
-        print('dot prod bound', dotProd)
+    avgPalm = compute_avg_vec(listener.palm)
+    return avgPalm, avgNorms
     
-    rollIntervals = []
-    rollIntervals.append([avgRoll-3*stdRoll,avgRoll+3*stdRoll])
-
-    with open('objs.pickle', 'w') as f:  # Python 3: open(..., 'wb')
-        pickle.dump([fingerIntervals, dotProdIntervals,rollIntervals], f)  
-        
-def compute_avg_vector(vectorList):
-    # Computes average vector from a list of vectors at different times
+def compute_avg_vec(vecList):
+    # Computes average vec from a list of vecs at different times
     x = 0
     y = 0
     z = 0
-    numVecs = len(vectorList)
-    for vector in vectorList:
-        x += vector.x
-        y += vector.y
-        z += vector.z
+    numVecs = len(vecList)
+    for vec in vecList:
+        x += vec.x
+        y += vec.y
+        z += vec.z
     return [x/numVecs,y/numVecs,z/numVecs]
 
-def compute_std_vector(vectorList):
-    # Compute std vector from a list of vectors at different times
-    var_vector = compute_var_vector(vectorList)
-    return [num**0.5 for num in var_vector]
+def compute_std_vec(vecList):
+    # Compute std vec from a list of vecs at different times
+    var_vec = compute_var_vec(vecList)
+    return [num**0.5 for num in var_vec]
 
-def compute_var_vector(vectorList):
-    # Compute variance vector from a list of vectors at different times
-    meanX, meanY, meanZ = compute_avg_vector(vectorList)
+def compute_var_vec(vecList):
+    # Compute variance vec from a list of vecs at different times
+    meanX, meanY, meanZ = compute_avg_vec(vecList)
     x = 0
     y = 0
     z = 0
-    numVecs = len(vectorList)    
-    for vector in vectorList:
-        x += (vector.x - meanX)**2
-        y += (vector.y - meanY)**2
-        z += (vector.z - meanZ)**2
+    numVecs = len(vecList)    
+    for vec in vecList:
+        x += (vec.x - meanX)**2
+        y += (vec.y - meanY)**2
+        z += (vec.z - meanZ)**2
     return [x/(numVecs-1),y/(numVecs-1),z/(numVecs-1)]
 
-def get_dim_across_vecs(vectorList, dimension):
-    # Returns every element of a dimension across all vectors
+def get_dim_across_vecs(vecList, dimension):
+    # Returns every element of a dimension across all vecs
     # e.g. get_across_list(someList,1) returns a list of X values
-    # for every vector in someList
+    # for every vec in someList
     values = []
     if dimension == 0:
-        values = [vector.x for vector in vectorList]
+        values = [vec.x for vec in vecList]
     if dimension == 1:
-        values = [vector.y for vector in vectorList]
+        values = [vec.y for vec in vecList]
     else:
-        values = [vector.z for vector in vectorList]
+        values = [vec.z for vec in vecList]
     return values
 
 def compute_cov(X,Y):
@@ -228,32 +196,32 @@ def compute_cov(X,Y):
         covSum += (X[i]-meanX)*(Y[i]-meanY)
     return covSum/(numObs-1)
 
-def compute_cov_XiYi_XjYj(vectorList1, vectorList2, dim1, dim2):
+def compute_cov_XiYi_XjYj(vecList1, vecList2, dim1, dim2):
     # Compute cov(X_i*Y_i,X_j*Y_j), see compute_var_dot_product
     # for details
-    meanFirst = compute_avg_vector(vectorList1)
-    meanSecond = compute_avg_vector(vectorList2)
-    covSum = (compute_cov(get_dim_across_vecs(vectorList1,dim1),
-                          get_dim_across_vecs(vectorList1,dim2))*
+    meanFirst = compute_avg_vec(vecList1)
+    meanSecond = compute_avg_vec(vecList2)
+    covSum = (compute_cov(get_dim_across_vecs(vecList1,dim1),
+                          get_dim_across_vecs(vecList1,dim2))*
         meanSecond[dim1]*meanSecond[dim2] + 
-        compute_cov(get_dim_across_vecs(vectorList2,dim1),
-                    get_dim_across_vecs(vectorList2,dim2))*
+        compute_cov(get_dim_across_vecs(vecList2,dim1),
+                    get_dim_across_vecs(vecList2,dim2))*
         meanFirst[dim1]*meanFirst[dim2] + 
-        compute_cov(get_dim_across_vecs(vectorList1,dim1),
-                    get_dim_across_vecs(vectorList1,dim2))*
-        compute_cov(get_dim_across_vecs(vectorList2,dim1),
-                    get_dim_across_vecs(vectorList2,dim2)))
+        compute_cov(get_dim_across_vecs(vecList1,dim1),
+                    get_dim_across_vecs(vecList1,dim2))*
+        compute_cov(get_dim_across_vecs(vecList2,dim1),
+                    get_dim_across_vecs(vecList2,dim2)))
     return covSum
 
-def compute_var_dot_product(vectorList1,vectorList2):
-    # Compute standard deviation of dot product of two vector lists at different times
+def compute_var_dot_product(vecList1,vecList2):
+    # Compute standard deviation of dot product of two vec lists at different times
     # i.e. compute var(X^TY) where dim(X) = nx1, dim(Y) = nx1
     # also see link below to explain formula
-    # https://stats.stackexchange.com/questions/76961/variance-of-product-of-2-independent-random-vector
-    meanFirst = compute_avg_vector(vectorList1)
-    meanSecond = compute_avg_vector(vectorList2)
-    varFirst = compute_var_vector(vectorList1)
-    varSecond = compute_var_vector(vectorList2)
+    # https://stats.stackexchange.com/questions/76961/variance-of-product-of-2-independent-random-vectors
+    meanFirst = compute_avg_vec(vecList1)
+    meanSecond = compute_avg_vec(vecList2)
+    varFirst = compute_var_vec(vecList1)
+    varSecond = compute_var_vec(vecList2)
     indepSum = 0
     for i in range(len(meanFirst)):
         indepSum += (varFirst[i]*meanSecond[i]**2 + 
@@ -262,38 +230,82 @@ def compute_var_dot_product(vectorList1,vectorList2):
     covSum = 0
     for i in range(len(meanFirst)-1):
         for j in range(i+1,len(meanFirst)):
-            covSum += compute_cov_XiYi_XjYj(vectorList1,vectorList2,i,j)
+            covSum += compute_cov_XiYi_XjYj(vecList1,vecList2,i,j)
     finalVar = indepSum + 2*covSum
     return finalVar
-
-def subtract_vectors(vector1, vector2):
-    # Subtract two leap vectors, where we subtract vector2 from vector1
-    x = vector1.x - vector2.x
-    y = vector1.y - vector2.y
-    z = vector1.z - vector2.z
-    return Leap.Vector(x,y,z)
-
-def check_finger_tolerance():
-    pass
-
-def check_dot_tolerance():
-    pass
     
-def check_vector_tolerance():
-    pass
+def compute_dot_products(avgNorms, avgPalm, listener):
+    # Computes Avg and Std dot product of palm to finger directional vecs
+    avgDotProds = []
+    for vec in avgNorms:
+        avgDotProds.append(sum(p*q for p,q in zip(avgPalm, vec)))
+    stdDotProds = []
+    for vecList in listener.handlist:
+        stdDotProds.append(compute_var_dot_product(listener.palm,vecList)**0.5)
+    return avgDotProds, stdDotProds
 
-def check_roll_tolerance():
-    pass
+def compute_roll(listener):
+    # Computes Avg and Std Roll
+    avgRoll = sum(listener.roll)/len(listener.roll)
+    stdRoll = (sum([(num-avgRoll)**2 for num in listener.roll])/(len(listener.roll)-1))**0.5
+    return avgRoll, stdRoll
 
-def check_tolerances(rollInfo):
-    # Check whether or not roll and dot match our binary password
-    # This position assumes a flat hand with fingers orthogonal to palm
-    ROLL_TOLERANCE = 0.2
-    DOT_TOLERANCE = 0.15
-    if roll <= ROLL_TOLERANCE and dot <= DOT_TOLERANCE:
-        return True
-    else:
-        return False
+def compute_fing_vecs(listener):
+    # Compute Avg and Std Finger Vecs relative to palm
+    avgFingerVecs = []
+    stdFingerVecs = []
+    for vecList in listener.vectlist:
+        avgFingerVecs.append(compute_avg_vec(vecList))
+        stdFingerVecs.append(compute_std_vec(vecList))
+    return avgFingerVecs, stdFingerVecs
+
+def construct_fing_intervals(avgFingVecs, stdFingVecs):
+    # Construct Finger Confidence Intervals for authentication
+    fingIntervals = []
+    for i in range(len(avgFingVecs)):
+        fing = []
+        for j in range(3):
+            fing.append([avgFingVecs[i][j]-3*stdFingVecs[i][j],
+                           avgFingVecs[i][j]+3*stdFingVecs[i][j]])
+        fingIntervals.append(fing)
+    return fingIntervals
+
+def construct_dot_intervals(avgDotProds, stdDotProds):
+    # Construct Dot Product Confidence Intervals for authentication
+    dotProdIntervals = []
+    for i in range(len(avgDotProds)):
+        dotProdIntervals.append([avgDotProds[i]-3*stdDotProds[i],
+                                 avgDotProds[i]+3*stdDotProds[i]])
+    return dotProdIntervals
+
+def construct_roll_intervals(avgRoll, stdRoll):
+    # Construct Roll Confidence Intervals for authentication
+    rollInterval = []
+    rollInterval.append([avgRoll-3*stdRoll,avgRoll+3*stdRoll])
+    return rollInterval
+
+def construct_conf_intervals(avgFingVecs,stdFingVecs,avgDotProds,
+                                   stdDotProds,avgRoll,stdRoll):
+    # Construct three main intervals for authentication
+    fingIntervals = construct_fing_intervals(avgFingVecs, stdFingVecs)
+    dotIntervals = construct_dot_intervals(avgDotProds,stdDotProds)
+    rollIntervals = construct_roll_intervals(avgRoll, stdRoll)
+    return fingIntervals, dotIntervals, rollIntervals
+
+def print_conf_intervals(fingIntervals, dotIntervals, rollIntervals):
+    # Print confidence intervals for manual checking
+    for fing in fingIntervals:
+        print('New Finger')
+        for coordinate in fing:
+            print('Finger Dimension Bound', coordinate)
+    for dotProd in dotIntervals:
+        print('Dot Prod Bound', dotProd)
+    print('Roll Interval Bound', rollIntervals)
+
+def pickle_intervals(fingIntervals, dotIntervals, rollIntervals):
+    # Pickles intervals for authentication
+    with open('objs.pickle', 'w') as f:
+        pickle.dump([fingIntervals, dotIntervals,rollIntervals], f)  
     
 if __name__ == "__main__":
     main()
