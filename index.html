@@ -49,14 +49,43 @@
       firebase.initializeApp(config);
       var database = firebase.database();
 
+      var uid = null;
       function writeUserName() {
         console.log("hello");
-        var userId = 1;
+        var userId = uid;
         var name = $('#username').val();
-        firebase.database().ref('users/' + userId).set({
-          username: name
+        firebase.database().ref('users/' + name).set({
+          pass: ["hello", "goodbye"],
         });
       }
+
+      // var refs = database.ref('users/');
+      // refs.on("value", function(snapshot) {
+      //   snapshot.forEach(function(childSnapshot) {
+      //     var childData = childSnapshot.val();
+      //   })
+      // });
+      //
+      // var access = null;
+      // function readsumtin() {
+      //   return firebase.database().ref('users/').once('value').then(function(snapshot){
+      //     updateAccess(access, snapshot.val());
+      //   })
+      // };
+      //
+      // function updateAccess(access, something){
+      //   access = something.name;
+      //   console.log("access: " + access);
+      // };
+
+      function readsumtin() {
+        database.ref('users/').on("value", function(snapshot) {
+           console.log(snapshot.val().pass);
+        }, function (error) {
+           console.log("Error: " + error.code);
+        });
+      }
+
     </script>
 
     <nav class="navbar navbar-inverse navbar-fixed-top">
@@ -89,13 +118,18 @@
     </div>
 
     <div class="container">
-      <form id="register-form" action="authentication.html" method="post" style="display: block;">
+      <form id="register-form" action="#" method="post" style="display: block;">
         <div class="form-group">
           <input type="text" name="username" id="username" class="form-control" tabindex="1" placeholder="Username" value="">
         </div>
         <div class="form-group">
           <div class="col-sm-6 col-sm-offset-3">
-            <input type="submit" name="register-submit" onclick="writeUserName()" id="register-submit" tabindex="4" class="form-control btn btn-register" value="Proceed to Authentication">
+            <input type="submit" name="register-submit" onclick="writeUserName()" id="register-submit" tabindex="4" class="form-control btn btn-register" value="Write">
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="col-sm-6 col-sm-offset-3">
+            <input type="submit" name="register-submit" onclick="readsumtin(); return false;" id="register-submit" tabindex="4" class="form-control btn btn-register" value="Read">
           </div>
         </div>
       </form>

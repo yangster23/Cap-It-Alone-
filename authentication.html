@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
     <meta name="description" content="">
     <meta name="author" content="">
@@ -29,6 +30,181 @@
       <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
       <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
     <![endif]-->
+    <script src="http://js.leapmotion.com/leap-0.6.3.min.js"></script>
+    <script>
+    // Track variables while in timer.
+    var inTimer = false;
+    var lastFingerDiffs = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
+    var currentFingerDiffs = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
+    var fingerErrors = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
+
+    // Setup Leap loop with frame callback function
+    var controllerOptions = {enableGestures: false};
+
+    function vectorToString(vector, digits) {
+      if (typeof digits === "undefined") {
+        digits = 1;
+      }
+      return "(" + vector[0].toFixed(digits) + ", "
+                 + vector[1].toFixed(digits) + ", "
+                 + vector[2].toFixed(digits) + ")";
+    }
+
+    function squareMagnitude(vector) {
+      var sum = 0;
+      for (var i = 0; i < vector.length; i++) {
+        sum += vector[i]*vector[i];
+      }
+      return sum;
+    }
+
+    function vectorDiff(vector1, vector2) {
+      var newVector = [];
+      if (vector1.length == vector2.length) {
+        for (var i = 0; i < vector1.length; i++) {
+          newVector.push(vector1[i] - vector2[i]);
+        }
+      }
+      return newVector;
+    }
+
+    // Variables to track when timing;
+    var lastFrame = -1;
+    var frameCount = 0;
+    var fingerTipSums = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
+    var fingerTipDirectionSums = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
+    var palmPositionSum = [0, 0, 0];
+    var palmDirectionSum = [0, 0, 0];
+    var palmNormalSum = [0, 0, 0];
+    var seconds = new Date().getTime() / 1000;
+
+    // to use HMD mode:
+    // controllerOptions.optimizeHMD = true;
+    Leap.loop(controllerOptions, function(frame) {
+      if (!inTimer) {
+        seconds = new Date().getTime() / 1000;
+      }
+
+      // If time is up
+      if (new Date().getTime() / 1000 - seconds > 3) {
+        var averageTips = [];
+        var averageTipDirections = []
+        for (var i = 0; i < 5; i++) {
+          var averageTip = [];
+          var averageTipDirection = [];
+          for (var j = 0; j < 3; j++) {
+            averageTip.push(fingerTipSums[i][j]/frameCount);
+            averageTipDirection.push(fingerTipDirectionSums[i][j]/frameCount);
+          }
+          averageTips.push(averageTip);
+          averageTipDirections.push(averageTipDirection);
+        }
+
+        var palmPositionAverages = [];
+        var palmDirectionAverages = [];
+        var palmNormalAverages = [];
+        for (var i = 0; i < 3; i++) {
+          palmPositionAverages[i] = palmPositionSum[i]/frameCount;
+          palmDirectionAverages[i] = palmDirectionSum[i]/frameCount;
+          palmNormalAverages[i] = palmNormalSum[i]/frameCount;
+        }
+
+        /*var printString = "Thumb Relative to Palm: " + vectorToString(vectorDiff(palmAverages, averageTips[0]), 2) + "\n";
+        printString += "Index Relative to Palm: " + vectorToString(vectorDiff(palmAverages, averageTips[1]), 2) + "\n";
+        printString += "Middle Relative to Palm: " + vectorToString(vectorDiff(palmAverages, averageTips[2]), 2) + "\n";
+        printString += "Ring Relative to Palm: " + vectorToString(vectorDiff(palmAverages, averageTips[3]), 2) + "\n";
+        printString += "Pinky Relative to Palm: " + vectorToString(vectorDiff(palmAverages, averageTips[4]), 2) + "\n";
+        console.log(printString);*/
+        for (var i = 0; i < 5; i++) {
+          currentFingerDiffs[i] = vectorDiff(palmPositionAverages, averageTipDirections[i]);
+        }
+
+        for (var i = 0; i < 5; i++) {
+          for (var j = 0; j < 3; j++) {
+            fingerErrors[i][j] = currentFingerDiffs[i][j] - lastFingerDiffs[i][j]
+          }
+        }
+
+        var printString = "";
+        var sum = 0;
+        var pass = true;
+        for (var i = 0; i < 5; i++) {
+          printString += "Error number " + i + " is " + squareMagnitude(fingerErrors[i]) + ".\n";
+          sum += squareMagnitude(fingerErrors[i]);
+        }
+        var aveError = sum/5;
+        printString += "Average Error is " + aveError + ".\n";
+        printString += "Palm Direction is " + vectorToString(palmDirectionAverages) + ".\n";
+        if (aveError < 300 && aveError > -300) {
+          printString += "You passed!\n";
+        }
+        else {
+          printString += "You failed.\n";
+        }
+        console.log(printString);
+
+        inTimer = false;
+        document.getElementById("start").style.visibility = "visible";
+        for (var i = 0; i < 5; i++) {
+          lastFingerDiffs[i] = currentFingerDiffs[i];
+        }
+      }
+
+      // Frame object data
+      if (lastFrame != frame.id) { // If different frame
+        lastFrame = frame.id;
+        if (inTimer) { // only count frames if currently timing, otherwise clear timer
+          frameCount++;
+        }
+        else {
+          frameCount = 0;
+        }
+      }
+
+      // Hand object data
+      if (frame.hands.length == 1) {
+        var hand = frame.hands[0];
+        if (inTimer) {
+          for (var i = 0; i < 3; i++) {
+            palmPositionSum[i] += hand.palmPosition[i];
+            palmDirectionSum[i] += hand.direction[i];
+            palmNormalSum[i] += hand.palmNormal[i];
+          }
+        }
+        else {
+          palmPositionSum = [0, 0, 0];
+          palmDirectionSum = [0, 0, 0];
+          palmNormalSum = [0, 0, 0];
+        }
+      }
+
+      // Pointable (finger and tool) object data
+      if (inTimer) {
+        if (frame.pointables.length > 0) {
+          for (var i = 0; i < frame.pointables.length; i++) {
+            var pointable = frame.pointables[i];
+            if (!pointable.tool) {
+              for (var j = 0; j < 3; j++) {
+                fingerTipSums[i][j] += pointable.tipPosition[j];
+                fingerTipDirectionSums[i][j] += pointable.direction[j];
+              }
+            }
+          }
+        }
+      }
+      else {
+        fingerTipSums = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
+        fingerTipDirectionSums = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
+      }
+    })
+
+    // Start recording hand position
+    function startRecording() {
+      inTimer = true;
+      document.getElementById("start").style.visibility = "hidden";
+    }
+    </script>
+
   </head>
 
   <body>
@@ -42,7 +218,7 @@
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
           </button>
-          <a class="navbar-brand" href="#">Project name</a>
+          <a class="navbar-brand" href="#">Leapr</a>
         </div>
         <div id="navbar" class="collapse navbar-collapse">
           <ul class="nav navbar-nav">
@@ -57,15 +233,14 @@
 
       <div class="starter-template">
         <h1>Leap Motion Hand Authentication</h1>
-        <p class="lead">Place your hand over the Leap Motion sensor.<br> Blah blah more instructions. </p>
+        <p class="lead">Place your hand over the Leap Motion sensor in the position you wish to use for authentication.<br> When ready, click the start button!. </p>
       </div>
 
     </div><!-- /.container -->
 
     <div class="container">
-
-
-	  </div>
+      <button id="start" onclick="startRecording()">Start!</button>
+    </div>
 
     <!-- Bootstrap core JavaScript
     ================================================== -->
