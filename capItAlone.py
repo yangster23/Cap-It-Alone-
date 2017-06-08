@@ -74,12 +74,6 @@ class SampleListener(Leap.Listener):
                 hand_pos = hand.palm_position
                 self.vectlist[finger.type].append(subtract_vecs(finger_pos, hand_pos))
 
-#                print "    %s finger, id: %d, length: %fmm, width: %fmm" % (
-#                     self.finger_names[finger.type],
-#                     finger.id,
-#                     finger.lengthwqwq,
-#                     finger.width)
-
         # Get tools
         for tool in frame.tools:
 
