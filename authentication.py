@@ -172,24 +172,6 @@ def compute_avg_vector(vectorList):
         z += vector.z
     return [x/numVecs,y/numVecs,z/numVecs]
 
-def compute_std_vector(vectorList):
-    # Compute std vector from a list of vectors at different times
-    var_vector = compute_var_vector(vectorList)
-    return [num**0.5 for num in var_vector]
-
-def compute_var_vector(vectorList):
-    # Compute variance vector from a list of vectors at different times
-    meanX, meanY, meanZ = compute_avg_vector(vectorList)
-    x = 0
-    y = 0
-    z = 0
-    numVecs = len(vectorList)    
-    for vector in vectorList:
-        x += (vector.x - meanX)**2
-        y += (vector.y - meanY)**2
-        z += (vector.z - meanZ)**2
-    return [x/(numVecs-1),y/(numVecs-1),z/(numVecs-1)]
-
 def get_dim_across_vecs(vectorList, dimension):
     # Returns every element of a dimension across all vectors
     # e.g. get_across_list(someList,1) returns a list of X values
@@ -203,54 +185,6 @@ def get_dim_across_vecs(vectorList, dimension):
         values = [vector.z for vector in vectorList]
     return values
 
-def compute_cov(X,Y):
-    # Compute cov(X,Y)
-    numObs = len(X)
-    meanX = sum(X)/numObs
-    meanY = sum(Y)/numObs
-    covSum = 0
-    for i in range(len(X)):
-        covSum += (X[i]-meanX)*(Y[i]-meanY)
-    return covSum/(numObs-1)
-
-def compute_cov_XiYi_XjYj(vectorList1, vectorList2, dim1, dim2):
-    # Compute cov(X_i*Y_i,X_j*Y_j), see compute_var_dot_product
-    # for details
-    meanFirst = compute_avg_vector(vectorList1)
-    meanSecond = compute_avg_vector(vectorList2)
-    covSum = (compute_cov(get_dim_across_vecs(vectorList1,dim1),
-                          get_dim_across_vecs(vectorList1,dim2))*
-        meanSecond[dim1]*meanSecond[dim2] + 
-        compute_cov(get_dim_across_vecs(vectorList2,dim1),
-                    get_dim_across_vecs(vectorList2,dim2))*
-        meanFirst[dim1]*meanFirst[dim2] + 
-        compute_cov(get_dim_across_vecs(vectorList1,dim1),
-                    get_dim_across_vecs(vectorList1,dim2))*
-        compute_cov(get_dim_across_vecs(vectorList2,dim1),
-                    get_dim_across_vecs(vectorList2,dim2)))
-    return covSum
-
-def compute_var_dot_product(vectorList1,vectorList2):
-    # Compute standard deviation of dot product of two vector lists at different times
-    # i.e. compute var(X^TY) where dim(X) = nx1, dim(Y) = nx1
-    # also see link below to explain formula
-    # https://stats.stackexchange.com/questions/76961/variance-of-product-of-2-independent-random-vector
-    meanFirst = compute_avg_vector(vectorList1)
-    meanSecond = compute_avg_vector(vectorList2)
-    varFirst = compute_var_vector(vectorList1)
-    varSecond = compute_var_vector(vectorList2)
-    indepSum = 0
-    for i in range(len(meanFirst)):
-        indepSum += (varFirst[i]*meanSecond[i]**2 + 
-            varSecond[i]*meanFirst[i]**2 + 
-            varFirst[i]*varSecond[i])
-    covSum = 0
-    for i in range(len(meanFirst)-1):
-        for j in range(i+1,len(meanFirst)):
-            covSum += compute_cov_XiYi_XjYj(vectorList1,vectorList2,i,j)
-    finalVar = indepSum + 2*covSum
-    return finalVar
-
 def subtract_vectors(vector1, vector2):
     # Subtract two leap vectors, where we subtract vector2 from vector1
     x = vector1.x - vector2.x
@@ -258,15 +192,5 @@ def subtract_vectors(vector1, vector2):
     z = vector1.z - vector2.z
     return Leap.Vector(x,y,z)
 
-def check_tolerances(rollInfo):
-    # Check whether or not roll and dot match our binary password
-    # This position assumes a flat hand with fingers orthogonal to palm
-    ROLL_TOLERANCE = 0.2
-    DOT_TOLERANCE = 0.15
-    if roll <= ROLL_TOLERANCE and dot <= DOT_TOLERANCE:
-        return True
-    else:
-        return False
-    
 if __name__ == "__main__":
     main(2)
