@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Jun 07 22:05:52 2017
+
+@author: Kyle
+"""
+
 #!/usr/bin/env python
 
 import pickle
@@ -66,6 +73,7 @@ class SampleListener(Leap.Listener):
                 normal.roll * Leap.RAD_TO_DEG,
                 direction.yaw * Leap.RAD_TO_DEG)
             self.roll.append(normal.roll)
+            
             # Get arm bone
             # arm = hand.arm
             # print "  Arm direction: %s, wrist position: %s, elbow position: %s" % (
@@ -106,7 +114,7 @@ class SampleListener(Leap.Listener):
         if state == Leap.Gesture.STATE_INVALID:
             return "STATE_INVALID"
 
-def main():
+def main(stage):
     global starttime
     # Create a sample listener and controller
     listener = SampleListener()
@@ -129,51 +137,28 @@ def main():
     print([vector for vector in avgNorms])
     # Compute absolute dot product of palm to finger directional vectors
     avgDotProds = []
-    stdDotProds = []
     for vector in avgNorms:
         avgDotProds.append(abs(sum(p*q for p,q in zip(avgPalm, vector))))
-    ####
-    for vectorList in listener.handlist:
-        stdDotProds.append(compute_var_dot_product(listener.palm,vectorList)**0.5)
-    ####
     # Compute roll
     avgRoll = sum(listener.roll)/len(listener.roll)
-    stdRoll = (sum([(num-avgRoll)**2 for num in listener.roll])/(len(listener.roll)-1))**0.5
     
-    print('Average roll', avgRoll)
-    print('Std Roll', stdRoll)
-    print('Average dot prods', [item for item in avgDotProds])
-    print('Average dot prod stds', [item for item in stdDotProds])
-
     avgFingerVectors = []
     for vectorList in listener.vectlist:
-        avgFingerVectors.append([compute_avg_vector(vectorList), compute_std_vector(vectorList)])
-    for vector in avgFingerVectors:
-        print('Avg. Finger Vector: ', vector[0])
-        print('Avg. Finger Std: ', vector[1])
-    fingerIntervals = []
-    for i in range(len(avgFingerVectors)):
-        finger = []
-        for j in range(3):
-            finger.append([avgFingerVectors[i][0][j]-3*avgFingerVectors[i][1][j],
-                           avgFingerVectors[i][0][j]+3*avgFingerVectors[i][1][j]])
-        fingerIntervals.append(finger)
-    for finger in fingerIntervals:
-        for coordinate in finger:
-            print('finger dimension bound', coordinate)
-    #print('Finger Confidence Intervals', fingerIntervals)
-    dotProdIntervals = []
-    for i in range(len(avgDotProds)):
-        dotProdIntervals.append([avgDotProds[i]-3*stdDotProds[i],
-                           avgDotProds[i]+3*stdDotProds[i]])
-    for dotProd in dotProdIntervals:
-        print('dot prod bound', dotProd)
+        avgFingerVectors.append(compute_avg_vector(vectorList))
     
-    rollIntervals = []
-    rollIntervals.append([avgRoll-3*stdRoll,avgRoll+3*stdRoll])
-
-    with open('objs.pickle', 'w') as f:  # Python 3: open(..., 'wb')
-        pickle.dump([fingerIntervals, dotProdIntervals,rollIntervals], f)  
+        # Getting back the objects:
+    with open('objs.pickle') as f:  # Python 3: open(..., 'rb')
+        fInt, dInt, rInt = pickle.load(f)
+    for i in range(len(fInt)):
+        print('new finger')
+        for j in range(3):
+            print('actual finger', avgFingerVectors[i][j])
+            print('coordinate bound',fInt[i][j])
+    for i in range(len(dInt)):
+        print('actual dot', avgDotProds[i])
+        print('dot bound',dInt[i])
+    print('Average roll', avgRoll)
+    print('roll interval', rInt)
         
 def compute_avg_vector(vectorList):
     # Computes average vector from a list of vectors at different times
@@ -273,18 +258,6 @@ def subtract_vectors(vector1, vector2):
     z = vector1.z - vector2.z
     return Leap.Vector(x,y,z)
 
-def check_finger_tolerance():
-    pass
-
-def check_dot_tolerance():
-    pass
-    
-def check_vector_tolerance():
-    pass
-
-def check_roll_tolerance():
-    pass
-
 def check_tolerances(rollInfo):
     # Check whether or not roll and dot match our binary password
     # This position assumes a flat hand with fingers orthogonal to palm
@@ -296,4 +269,4 @@ def check_tolerances(rollInfo):
         return False
     
 if __name__ == "__main__":
-    main()
+    main(2)
