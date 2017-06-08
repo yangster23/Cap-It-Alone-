@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Hands - Leap</title>
+  <script src="http://js.leapmotion.com/leap-0.6.3.min.js"></script>
+  <script src="../leap-0.6.4.js"></script>
+  <script src="lib/leap-plugins-0.1.6.js"></script>
+  <script src="lib/three.js"></script>
+
+</head>
+<body>
+
+<h1> <center> SignAuth </center> </h1>
+  <div id="main">
+    <button class="start" onclick="startRecording(true)">Store Sign!</button>
+    <button class="start" onclick="startRecording(false)">Compare Sign!</button>
+  </div>
+
+  <p> Move hand over Leap flat out to start authentication. </p>
+
+</body>
+<script>
+
+ var colors = [0xff0000, 0x00ff00, 0x0000ff];
+ var baseBoneRotation = (new THREE.Quaternion).setFromEuler(
+  new THREE.Euler(Math.PI / 2, 0, 0)
+  );
+
+// Track variables while in timer.
+var inTimer = false;
+var store = false;
+var lastFingerDiffs = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
+var currentFingerDiffs = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
+var fingerErrors = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
+
+// Setup Leap loop with frame callback function
+var controllerOptions = {enableGestures: false};
+
+function vectorToString(vector, digits) {
+  if (typeof digits === "undefined") {
+    digits = 1;
+  }
+  return "(" + vector[0].toFixed(digits) + ", "
+  + vector[1].toFixed(digits) + ", "
+  + vector[2].toFixed(digits) + ")";
+}
+
+function squareMagnitude(vector) {
+  var sum = 0;
+  for (var i = 0; i < vector.length; i++) {
+    sum += vector[i]*vector[i];
+  }
+  return sum;
+}
+
+function vectorDiff(vector1, vector2) {
+  var newVector = [];
+  if (vector1.length == vector2.length) {
+    for (var i = 0; i < vector1.length; i++) {
+      newVector.push(vector1[i] - vector2[i]);
+    }
+  }
+  return newVector;
+}
+
+// Variables to track when timing;
+var lastFrame = -1;
+var frameCount = 0;
+var fingerTipSums = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
+var fingerTipDirectionSums = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
+var palmPositionSum = [0, 0, 0];
+var palmDirectionSum = [0, 0, 0];
+var palmNormalSum = [0, 0, 0];
+var seconds = new Date().getTime() / 1000;
+
+// to use HMD mode:
+// controllerOptions.optimizeHMD = true;
+Leap.loop({background: true}, function(frame) {
+
+  if (frame.hands.length > 0) {
+    for (var i = 0; i < frame.hands.length; i++) {
+      var hand = frame.hands[i];
+      hand.fingers.forEach(function (finger) {
+
+        // This is the meat of the example - Positioning `the cylinders on every frame:
+        finger.data('boneMeshes').forEach(function(mesh, i){
+          var bone = finger.bones[i];
+
+          mesh.position.fromArray(bone.center());
+
+          mesh.setRotationFromMatrix(
+            (new THREE.Matrix4).fromArray( bone.matrix() )
+            );
+
+          mesh.quaternion.multiply(baseBoneRotation);
+        });
+
+        finger.data('jointMeshes').forEach(function(mesh, i){
+          var bone = finger.bones[i];
+
+          if (bone) {
+            mesh.position.fromArray(bone.prevJoint);
+          }else{
+            // special case for the finger tip joint sphere:
+            bone = finger.bones[i-1];
+            mesh.position.fromArray(bone.nextJoint);
+          }
+
+        });
+
+      });
+
+      var armMesh = hand.data('armMesh');
+
+      armMesh.position.fromArray(hand.arm.center());
+
+      armMesh.setRotationFromMatrix(
+        (new THREE.Matrix4).fromArray( hand.arm.matrix() )
+        );
+
+      armMesh.quaternion.multiply(baseBoneRotation);
+
+      armMesh.scale.x = hand.arm.width / 2;
+      armMesh.scale.z = hand.arm.width / 4;
+
+      renderer.render(scene, camera);
+    }
+  }
+
+  if (!inTimer) {
+    seconds = new Date().getTime() / 1000;
+  }
+
+  // If time is up
+  if (new Date().getTime() / 1000 - seconds > 3) {
+    var averageTips = [];
+    var averageTipDirections = []
+    for (var i = 0; i < 5; i++) {
+      var averageTip = [];
+      var averageTipDirection = [];
+      for (var j = 0; j < 3; j++) {
+        averageTip.push(fingerTipSums[i][j]/frameCount);
+        averageTipDirection.push(fingerTipDirectionSums[i][j]/frameCount);
+      }
+      averageTips.push(averageTip);
+      averageTipDirections.push(averageTipDirection);
+    }
+
+    var palmPositionAverages = [];
+    var palmDirectionAverages = [];
+    var palmNormalAverages = [];
+    for (var i = 0; i < 3; i++) {
+      palmPositionAverages[i] = palmPositionSum[i]/frameCount;
+      palmDirectionAverages[i] = palmDirectionSum[i]/frameCount;
+      palmNormalAverages[i] = palmNormalSum[i]/frameCount;
+    }
+    
+    var printString = "Thumb Relative to Palm: " + vectorToString(averageTips[0], 2) + "\n";
+    printString += "Index Relative to Palm: " + vectorToString(averageTips[1], 2) + "\n";
+    printString += "Middle Relative to Palm: " + vectorToString(averageTips[2], 2) + "\n";
+    printString += "Ring Relative to Palm: " + vectorToString(averageTips[3], 2) + "\n";
+    printString += "Pinky Relative to Palm: " + vectorToString(averageTips[4], 2) + "\n";
+    console.log(printString);
+    for (var i = 0; i < 5; i++) {
+      currentFingerDiffs[i] = vectorDiff(palmPositionAverages, averageTips[i]);
+    }
+
+    for (var i = 0; i < 5; i++) {
+      for (var j = 0; j < 3; j++) {
+        fingerErrors[i][j] = currentFingerDiffs[i][j] - lastFingerDiffs[i][j]
+      }
+    }
+
+    printString = "";
+    var sum = 0;
+    var pass = true;
+    for (var i = 0; i < 5; i++) {
+      //printString += "Error number " + i + " is " + squareMagnitude(fingerErrors[i]) + ".\n";
+      sum += squareMagnitude(fingerErrors[i]);
+    }
+    var aveError = sum/5;
+    printString += "Average Error is " + aveError + ".\n";
+    printString += "Palm Direction is " + vectorToString(palmDirectionAverages) + ".\n";
+    if (aveError < 1000 && aveError > -1000) {
+      printString += "You passed!\n";
+    }
+    else {
+      printString += "You failed.\n";
+    }
+    console.log(printString);
+
+    document.getElementById("main").style.visibility = "visible";
+
+    if (store) {
+      for (var i = 0; i < 5; i++) {
+        lastFingerDiffs[i] = currentFingerDiffs[i];
+      }
+    }
+    inTimer = false;
+    store = false;
+  }
+
+  // Frame object data
+  if (lastFrame != frame.id) { // If different frame
+    lastFrame = frame.id;
+    if (inTimer) { // only count frames if currently timing, otherwise clear timer
+      frameCount++; 
+    }
+    else {
+      frameCount = 0;
+    }
+  }
+
+  // Hand object data
+  if (frame.hands.length == 1) {
+    var hand = frame.hands[0];
+    if (inTimer) {
+      for (var i = 0; i < 3; i++) {
+        palmPositionSum[i] += hand.palmPosition[i];
+        palmDirectionSum[i] += hand.direction[i];
+        palmNormalSum[i] += hand.palmNormal[i];
+      }
+    }
+    else {
+      palmPositionSum = [0, 0, 0];
+      palmDirectionSum = [0, 0, 0];
+      palmNormalSum = [0, 0, 0];
+    }
+  }
+
+  // Pointable (finger and tool) object data
+  if (inTimer) {
+    if (frame.pointables.length > 0) {
+      for (var i = 0; i < frame.pointables.length; i++) {
+        var pointable = frame.pointables[i];
+        if (!pointable.tool) {
+          for (var j = 0; j < 3; j++) {
+            fingerTipSums[i][j] += pointable.tipPosition[j];
+            fingerTipDirectionSums[i][j] += pointable.direction[j];
+          }
+        }
+      }
+    }
+  }
+  else {
+    fingerTipSums = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
+    fingerTipDirectionSums = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  }
+})
+
+ // these two LeapJS plugins, handHold and handEntry are available from leapjs-plugins, included above.
+    // handHold provides hand.data
+    // handEntry provides handFound/handLost events.
+    .use('handHold')
+    .use('handEntry')
+    .on('handFound', function(hand){
+
+      hand.fingers.forEach(function (finger) {
+
+        var boneMeshes = [];
+        var jointMeshes = [];
+
+        finger.bones.forEach(function(bone) {
+
+        // create joints
+
+        // CylinderGeometry(radiusTop, radiusBottom, height, radiusSegments, heightSegments, openEnded)
+        var boneMesh = new THREE.Mesh(
+          new THREE.CylinderGeometry(5, 5, bone.length),
+          new THREE.MeshPhongMaterial()
+          );
+
+        boneMesh.material.color.setHex(0xffffff);
+        scene.add(boneMesh);
+        boneMeshes.push(boneMesh);
+      });
+
+        for (var i = 0; i < finger.bones.length + 1; i++) {
+
+          var jointMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(8),
+            new THREE.MeshPhongMaterial()
+            );
+
+          jointMesh.material.color.setHex(0x0088ce);
+          scene.add(jointMesh);
+          jointMeshes.push(jointMesh);
+
+        }
+
+
+        finger.data('boneMeshes', boneMeshes);
+        finger.data('jointMeshes', jointMeshes);
+
+      });
+
+    if (hand.arm){ // 2.0.3+ have arm api,
+      // CylinderGeometry(radiusTop, radiusBottom, height, radiusSegments, heightSegments, openEnded)
+      var armMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(1, 1, hand.arm.length, 64),
+        new THREE.MeshPhongMaterial()
+        );
+
+      armMesh.material.color.setHex(0xffffff);
+
+      hand.data('armMesh', armMesh);
+
+    }
+
+  })
+    .on('handLost', function(hand){
+
+      hand.fingers.forEach(function (finger) {
+
+        var boneMeshes = finger.data('boneMeshes');
+        var jointMeshes = finger.data('jointMeshes');
+
+        boneMeshes.forEach(function(mesh){
+          scene.remove(mesh);
+        });
+
+        jointMeshes.forEach(function(mesh){
+          scene.remove(mesh);
+        });
+
+        finger.data({
+          boneMeshes: null,
+          boneMeshes: null
+        });
+
+      });
+
+      var armMesh = hand.data('armMesh');
+      scene.remove(armMesh);
+      hand.data('armMesh', null);
+
+      renderer.render(scene, camera);
+
+    })
+    .connect();
+
+// Start recording hand position
+function startRecording(doStore) {
+  inTimer = true;
+  store = doStore;
+  document.getElementById("main").style.visibility = "hidden";
+}
+
+
+  // all units in mm
+  var initScene = function () {
+    window.scene = new THREE.Scene();
+    window.renderer = new THREE.WebGLRenderer({
+      alpha: true
+    });
+
+    window.renderer.setClearColor(0x000000, 0);
+    window.renderer.setSize(window.innerWidth, window.innerHeight);
+
+    window.renderer.domElement.style.position = 'relative';
+    window.renderer.domElement.style.top = 0;
+    window.renderer.domElement.style.left = 0;
+    window.renderer.domElement.style.width = '100%';
+    window.renderer.domElement.style.height = '100%';
+
+    document.body.appendChild(window.renderer.domElement);
+
+    var directionalLight = new THREE.DirectionalLight( 0xffffff, 1 );
+    directionalLight.position.set( 0, 0.5, 1 );
+    window.scene.add(directionalLight);
+
+    window.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
+    window.camera.position.fromArray([0, 100, 500]);
+    window.camera.lookAt(new THREE.Vector3(0, 160, 0));
+
+    window.addEventListener('resize', function () {
+
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.render(scene, camera);
+
+    }, false);
+
+    scene.add(camera);
+
+
+    renderer.render(scene, camera);
+  };
+
+  initScene();
+
+</script>
+</html>
