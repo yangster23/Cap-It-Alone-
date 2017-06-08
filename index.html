@@ -49,14 +49,27 @@
       firebase.initializeApp(config);
       var database = firebase.database();
 
+      var exists = false;
       var uid = null;
       function writeUserName() {
         console.log("hello");
         var userId = uid;
         var name = $('#username').val();
-        firebase.database().ref('users/' + name).set({
-          pass: ["hello", "goodbye"],
-        });
+
+        snapshot.forEach(function(userSnap) {
+          if (name == userSnap.key) {
+            return true;
+          }
+          else {
+            firebase.database().ref('users/' + name).set({
+              // pass: ["hello", "goodbye", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13"],
+            });
+            return false;
+          }
+          console.log(userSnap.key)
+        })
+
+
       }
 
       // var refs = database.ref('users/');
@@ -78,9 +91,14 @@
       //   console.log("access: " + access);
       // };
 
-      function readsumtin() {
-        database.ref('users/').on("value", function(snapshot) {
-           console.log(snapshot.val().pass);
+      function readUser() {
+        database.ref('/users/').on("value", function(snapshot) {
+          // snapshot.forEach(function(userSnap) {
+          //
+          //   console.log(userSnap.key)
+          // })
+          //  console.log(snapshot.val().users[0]);
+
         }, function (error) {
            console.log("Error: " + error.code);
         });
@@ -118,33 +136,17 @@
     </div>
 
     <div class="container">
-      <form id="register-form" action="#" method="post" style="display: block;">
+      <form id="register-form" action="authentication.html" method="post" style="display: block;">
         <div class="form-group">
           <input type="text" name="username" id="username" class="form-control" tabindex="1" placeholder="Username" value="">
         </div>
         <div class="form-group">
           <div class="col-sm-6 col-sm-offset-3">
-            <input type="submit" name="register-submit" onclick="writeUserName()" id="register-submit" tabindex="4" class="form-control btn btn-register" value="Write">
-          </div>
-        </div>
-        <div class="form-group">
-          <div class="col-sm-6 col-sm-offset-3">
-            <input type="submit" name="register-submit" onclick="readsumtin(); return false;" id="register-submit" tabindex="4" class="form-control btn btn-register" value="Read">
+            <input type="submit" name="signup" onclick="return writeUserName();" id="register-submit" tabindex="4" class="form-control btn btn-register" value="Signup">
           </div>
         </div>
       </form>
 
-				<!-- <form id="register-form" action="authentication.html" method="post" role="form" style="display: block;">
-
-					<div class="form-group">
-						<div class="row">
-							<div class="col-sm-6 col-sm-offset-3">
-								<button type="submit" name="register-submit" onclick="writeUserName()" id="register-submit"  class="form-control btn btn-register" value="Proceed to Authentication">
-                </button>
-
-						</div>
-					</div>
-				</form> -->
 	</div>
 
     <!-- Bootstrap core JavaScript
